@@ -1,0 +1,50 @@
+#!/bin/bash
+python3 - << 'EOF'
+import numpy as np
+from pymatgen.io.vasp import Outcar, Poscar
+from pymatgen.core import Structure
+
+# ===== ファイル読み込み =====
+out = Outcar("OUTCAR")
+structure = Structure.from_file("CONTCAR")
+
+# 最終ステップの磁気モーメント
+mag = out.magnetization
+
+# ===== 出力ファイル =====
+filename = "magmom_visualization.mcif"
+
+with open(filename, "w") as f:
+    f.write("data_magmom\n")
+    f.write("_symmetry_space_group_name_H-M   'P 1'\n")
+    f.write("_cell_length_a   {}\n".format(structure.lattice.a))
+    f.write("_cell_length_b   {}\n".format(structure.lattice.b))
+    f.write("_cell_length_c   {}\n".format(structure.lattice.c))
+    f.write("_cell_angle_alpha   {}\n".format(structure.lattice.alpha))
+    f.write("_cell_angle_beta    {}\n".format(structure.lattice.beta))
+    f.write("_cell_angle_gamma   {}\n".format(structure.lattice.gamma))
+    f.write("\n")
+
+    f.write("loop_\n")
+    f.write("_atom_site_label\n")
+    f.write("_atom_site_type_symbol\n")
+    f.write("_atom_site_fract_x\n")
+    f.write("_atom_site_fract_y\n")
+    f.write("_atom_site_fract_z\n")
+
+    for i, site in enumerate(structure):
+        f.write(f"{site.species_string}{i+1} {site.species_string} "
+                f"{site.frac_coords[0]} {site.frac_coords[1]} {site.frac_coords[2]}\n")
+
+    f.write("\nloop_\n")
+    f.write("_atom_site_moment_label\n")
+    f.write("_atom_site_moment_crystalaxis_x\n")
+    f.write("_atom_site_moment_crystalaxis_y\n")
+    f.write("_atom_site_moment_crystalaxis_z\n")
+
+    for i, m in enumerate(mag):
+        mz = m["tot"]  # collinearの場合
+        f.write(f"{structure[i].species_string}{i+1} 0.0 0.0 {mz}\n")
+
+print("Output written to", filename)
+EOF
