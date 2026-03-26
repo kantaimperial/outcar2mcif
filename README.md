@@ -1,103 +1,54 @@
-# outcar2mcif
+# vasp-magtools
 
+Small command-line tools for handling magnetic information from VASP outputs.
+
+## Included tools
+
+### `outcar2mcif`
 Extracts site-resolved magnetic moments from VASP `OUTCAR` and writes them to a magCIF file for visualization in VESTA.
 
-## Overview
+### `mag2incar`
+Reads magnetic moments from a VASP `OUTCAR` file and writes them into `INCAR` as a `MAGMOM` tag.
+Supports both collinear and noncollinear (`-SOC`) formats.
 
-`outcar2mcif` is a simple command-line tool that converts VASP output files into a format suitable for visualizing magnetic structures.
-
-It reads:
-
-- `OUTCAR` (magnetic moments)
-- `CONTCAR` (atomic structure)
-
-and generates:
-
-- `magmom_visualization.mcif`
-
-which can be directly opened in VESTA.
-
-## Installation
-
-Clone the repository and move into the project directory:
-
-```bash
-git clone https://github.com/kantaimperial/outcar2mcif.git
-cd outcar2mcif
-```
-
-Next, install the required Python package:
+## Requirements
 
 ```bash
 pip install pymatgen
 ```
 
-Then, make the script executable:
+## Installation
+
+Clone the repository:
+
+```bash
+git clone git@github.com:kantaimperial/vasp-magtools.git
+cd vasp-magtools
+```
+
+Make the scripts executable:
 
 ```bash
 chmod +x outcar2mcif
+chmod +x mag2incar
 ```
 
-You can run the script directly from the repository directory:
+You can run them directly:
 
 ```bash
 ./outcar2mcif
+./mag2incar
+./mag2incar -SOC
 ```
 
-If you would like to use `outcar2mcif` as a command from any directory, move it to a directory in your `PATH`:
+Or move them into a directory in your `PATH`:
 
 ```bash
-mv outcar2mcif ~/bin/
+cp outcar2mcif ~/bin/
+cp mag2incar ~/bin/
+chmod +x ~/bin/outcar2mcif
+chmod +x ~/bin/mag2incar
 ```
-
-If `~/bin` is not already included in your `PATH`, add it with:
-
-```bash
-export PATH="$HOME/bin:$PATH"
-```
-
-Then reload your shell configuration:
-
-```bash
-source ~/.bashrc
-```
-
-After that, you can run:
-
-```bash
-outcar2mcif
-```
-
-## Usage
-
-Run the script in a directory containing `OUTCAR` and `CONTCAR`:
-
-```bash
-outcar2mcif
-```
-
-## Output
-
-The script generates:
-
-```text
-magmom_visualization.mcif
-```
-
-Open this file in VESTA to visualize magnetic moments.
-
-## Features
-
-- Extracts magnetic moments from VASP `OUTCAR`
-- Supports collinear spin calculations
-- Automatically maps magnetic moments to atomic positions
-- Outputs magCIF format compatible with VESTA
-
-## Notes
-
-- Magnetic moments are written along the z-axis for collinear calculations
-- Ensure that `OUTCAR` and `CONTCAR` correspond to the same calculation
-- The script uses the final ionic step in `OUTCAR`
 
 ## Author
 

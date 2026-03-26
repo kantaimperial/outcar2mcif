@@ -1,0 +1,155 @@
+#!/bin/bash
+python3 - "$@" << 'EOF'
+import sys
+import re
+from pathlib import Path
+
+args = sys.argv[1:]
+soc_mode = "-SOC" in args or "--SOC" in args
+
+OUTCAR = Path("OUTCAR")
+INCAR = Path("INCAR")
+BACKUP = Path("INCAR.bak")
+
+if not OUTCAR.exists():
+    raise FileNotFoundError("OUTCAR が見つかりません")
+if not INCAR.exists():
+    raise FileNotFoundError("INCAR が見つかりません")
+
+
+def extract_last_block(lines, tag):
+    starts = [i for i, l in enumerate(lines) if tag in l]
+    if not starts:
+        return None
+    start = starts[-1]
+
+    block = []
+    started = False
+    for l in lines[start:]:
+        if not started:
+            started = True
+        elif (
+            tag != "magnetization (x)" and "magnetization (x)" in l
+        ) or (
+            tag != "magnetization (y)" and "magnetization (y)" in l
+        ) or (
+            tag != "magnetization (z)" and "magnetization (z)" in l
+        ) or (
+            "number of electron" in l
+        ):
+            break
+        block.append(l.rstrip())
+    return block
+
+
+def parse_block(block):
+    vals = []
+    start = False
+    for l in block:
+        if "# of ion" in l:
+            start = True
+            continue
+        if not start:
+            continue
+        if set(l.strip()) <= {"-"} or not l.strip():
+            continue
+        if re.match(r"^\s*\d+", l):
+            vals.append(float(l.split()[-1]))
+    return vals
+
+
+lines = OUTCAR.read_text(errors="ignore").splitlines()
+
+if soc_mode:
+    bx = extract_last_block(lines, "magnetization (x)")
+    by = extract_last_block(lines, "magnetization (y)")
+    bz = extract_last_block(lines, "magnetization (z)")
+
+    if not (bx and by and bz):
+        raise RuntimeError("SOCモードなのに magnetization (x/y/z) が見つかりません")
+
+    mx = parse_block(bx)
+    my = parse_block(by)
+    mz = parse_block(bz)
+
+    if not (len(mx) == len(my) == len(mz)):
+        raise RuntimeError("x, y, z の原子数が一致しません")
+
+    rows = []
+    zero_count = 0
+
+    for i in range(len(mx)):
+        if abs(mx[i]) < 1e-6 and abs(my[i]) < 1e-6 and abs(mz[i]) < 1e-6:
+            zero_count += 1
+        else:
+            if zero_count > 0:
+                rows.append(f"         {zero_count}*0.0")
+                zero_count = 0
+            rows.append(f"         {mx[i]:.3f} {my[i]:.3f} {mz[i]:.3f}")
+
+    if zero_count > 0:
+        rows.append(f"         {zero_count}*0.0")
+
+    magmom_lines = []
+    for i, r in enumerate(rows):
+        if i == 0:
+            if len(rows) == 1:
+                magmom_lines.append("MAGMOM = " + r.strip())
+            else:
+                magmom_lines.append("MAGMOM = " + r.strip() + " \\")
+        elif i == len(rows) - 1:
+            magmom_lines.append(r)
+        else:
+            magmom_lines.append(r + " \\")
+
+    magmom_str = "\n".join(magmom_lines)
+
+else:
+    bx = extract_last_block(lines, "magnetization (x)")
+    if bx is None:
+        raise RuntimeError("OUTCAR に magnetization (x) が見つかりません")
+
+    m = parse_block(bx)
+    magmom_str = "MAGMOM = " + " ".join(f"{x:.3f}" for x in m)
+
+
+incar_lines = INCAR.read_text().splitlines()
+BACKUP.write_text("\n".join(incar_lines) + "\n")
+
+new_lines = []
+skip_magmom = False
+
+for l in incar_lines:
+    if re.match(r"^\s*MAGMOM\s*=", l, re.I):
+        skip_magmom = True
+        continue
+
+    if skip_magmom:
+        if l.rstrip().endswith("\\"):
+            continue
+        if l.strip() == "":
+            continue
+        # MAGMOM の継続行が終わったら通常処理に戻る
+        skip_magmom = False
+
+    # 既存のLSORBIT / LNONCOLLINEARはSOCモード時に入れ直す
+    if soc_mode and re.match(r"^\s*LSORBIT\s*=", l, re.I):
+        continue
+    if soc_mode and re.match(r"^\s*LNONCOLLINEAR\s*=", l, re.I):
+        continue
+
+    new_lines.append(l)
+
+new_lines.append("")
+new_lines.append(magmom_str)
+
+if soc_mode:
+    new_lines.append("LSORBIT = .TRUE.")
+    new_lines.append("LNONCOLLINEAR = .TRUE.")
+
+INCAR.write_text("\n".join(new_lines) + "\n")
+
+print("INCAR updated")
+print(magmom_str)
+print("Backup written to INCAR.bak")
+EOF
